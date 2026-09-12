@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "figma": {
+      "command": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin/npx",
+      "args": [
+        "-y",
+        "figma-developer-mcp",
+        "--stdio"
+      ],
+      "env": {
+        "FIGMA_API_KEY": "",
+        "PATH": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin:/home/jiggra/snap/antigravity-cli/common/local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    },
+    "github": {
+      "command": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin/npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "",
+        "PATH": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin:/home/jiggra/snap/antigravity-cli/common/local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    },
+    "railway": {
+      "command": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin/npx",
+      "args": [
+        "-y",
+        "@railway/mcp-server"
+      ],
+      "env": {
+        "RAILWAY_API_TOKEN": "",
+        "PATH": "/home/jiggra/snap/antigravity-cli/common/nodejs/bin:/home/jiggra/snap/antigravity-cli/common/local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}

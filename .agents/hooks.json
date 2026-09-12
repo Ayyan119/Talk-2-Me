@@ -1,0 +1,32 @@
+{
+  "protect-sensitive-files": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command|write_to_file|replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /home/jiggra/talk_to_me/.agents/scripts/protect_files.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "black-formatter": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /home/jiggra/talk_to_me/.agents/scripts/format_black.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

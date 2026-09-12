@@ -1,0 +1,32 @@
+# Environment variables (never commit secrets)
+.env
+
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+
+# Logs directory
+logs/
+
+# Operating System files
+.DS_Store
+
+# Package metadata / distributions
+*.egg-info/
+dist/
+build/
+
+# IDE configurations
+.vscode/
+.idea/
+
+# Testing & Cache
+.pytest_cache/
+.ruff_cache/
+.deepeval/
