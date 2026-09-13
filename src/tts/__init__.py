@@ -5,5 +5,6 @@ Dependencies: src.tts.base
 """
 
 from src.tts.base import TextToSpeech
+from src.tts.elevenlabs_tts import ElevenLabsTTS
 
-__all__ = ["TextToSpeech"]
+__all__ = ["ElevenLabsTTS", "TextToSpeech"]
