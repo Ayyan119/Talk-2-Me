@@ -4,6 +4,7 @@ Purpose: Core domain models, contracts, and shared exception definitions.
 Dependencies: Standard library only
 """
 
+from src.core.audio_io import AudioIO
 from src.core.exceptions import (
     AudioProcessingError,
     ConfigurationError,
@@ -28,6 +29,7 @@ from src.core.types import (
 __all__ = [
     "AudioChunk",
     "AudioFormat",
+    "AudioIO",
     "AudioProcessingError",
     "ConfigurationError",
     "ConversationMemoryError",
