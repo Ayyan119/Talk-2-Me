@@ -86,6 +86,14 @@ class SoundDeviceAudioIO(AudioIO):
 
         self._loop = asyncio.get_running_loop()
         try:
+            # Query device list first to prevent C-level PortAudio aborts if no device is available
+            devices = sd.query_devices()
+            if not devices:
+                raise AudioProcessingError(
+                    "No audio input/output devices detected by sounddevice/PortAudio. "
+                    "If running inside a confined environment, please launch the application directly in your host terminal."
+                )
+
             self._input_stream = sd.InputStream(
                 samplerate=self._input_format.sample_rate,
                 channels=self._input_format.channels,
@@ -102,8 +110,16 @@ class SoundDeviceAudioIO(AudioIO):
             )
             self._output_stream.start()
             self._is_running = True
-        except (sd.PortAudioError, OSError, RuntimeError) as err:
+        except (
+            sd.PortAudioError,
+            OSError,
+            RuntimeError,
+            AudioProcessingError,
+            Exception,
+        ) as err:
             self._is_running = False
+            if isinstance(err, AudioProcessingError):
+                raise
             raise AudioProcessingError(
                 f"Failed to start sounddevice audio streams: {err}"
             ) from err
