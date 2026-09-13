@@ -260,6 +260,11 @@ class VoiceAssistantPipeline:
             await self._audio_io.start()
         except AudioProcessingError as err:
             self._logger.error("Failed to start audio I/O: %s", err)
+            print(f"\n❌ Error starting audio devices: {err}", flush=True)
+            print(
+                "Please ensure your microphone and speakers are connected and accessible.\n",
+                flush=True,
+            )
             self._is_running = False
             return
 
