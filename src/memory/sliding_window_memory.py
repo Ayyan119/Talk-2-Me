@@ -20,22 +20,32 @@ class SlidingWindowMemory(ConversationMemory):
             to retain in context when max_turns is not explicitly specified.
     """
 
-    def __init__(self, default_max_turns: int | None = 10) -> None:
+    def __init__(
+        self,
+        default_max_turns: int | None = 10,
+        max_turns: int | None = None,
+        system_prompt: str | None = None,
+    ) -> None:
         """Initializes an empty sliding window conversation memory.
 
         Args:
             default_max_turns: Default maximum number of dialogue turns to return in context.
                 Must be greater than 0 if specified.
+            max_turns: Optional alias for default_max_turns.
+            system_prompt: Optional initial system prompt string to add to memory.
 
         Raises:
-            ConversationMemoryError: If default_max_turns is less than or equal to 0.
+            ConversationMemoryError: If effective max turns is less than or equal to 0.
         """
-        if default_max_turns is not None and default_max_turns <= 0:
+        effective_turns = max_turns if max_turns is not None else default_max_turns
+        if effective_turns is not None and effective_turns <= 0:
             raise ConversationMemoryError(
-                f"default_max_turns must be positive, got {default_max_turns}"
+                f"default_max_turns must be positive, got {effective_turns}"
             )
-        self.default_max_turns = default_max_turns
+        self.default_max_turns = effective_turns
         self._messages: list[Message] = []
+        if system_prompt:
+            self.add_message(Message(role=MessageRole.SYSTEM, content=system_prompt))
 
     def add_message(self, message: Message) -> None:
         """Appends a new validated Message instance to in-memory history.

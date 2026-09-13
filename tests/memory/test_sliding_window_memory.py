@@ -109,3 +109,16 @@ def test_validation_errors() -> None:
     # Negative max_turns in get_context
     with pytest.raises(ConversationMemoryError, match="must be non-negative"):
         memory.get_context(max_turns=-1)
+
+
+def test_init_with_max_turns_alias_and_system_prompt() -> None:
+    """Tests initializing SlidingWindowMemory with max_turns alias and initial system prompt."""
+    memory = SlidingWindowMemory(
+        max_turns=5,
+        system_prompt="You are a helpful assistant.",
+    )
+    assert memory.default_max_turns == 5
+    context = memory.get_context()
+    assert len(context) == 1
+    assert context[0].role == MessageRole.SYSTEM
+    assert context[0].content == "You are a helpful assistant."
