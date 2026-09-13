@@ -190,15 +190,18 @@ class ElevenLabsTTS(TextToSpeech):
             attempt += 1
             try:
                 raw_bytes_list: list[bytes] = []
-                audio_stream = await asyncio.wait_for(
-                    self._client.text_to_speech.convert(
-                        voice_id=voice_id,
-                        text=text,
-                        model_id=model_id,
-                        output_format=output_format,
-                    ),
-                    timeout=self._timeout_seconds,
+                stream_res = self._client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=text,
+                    model_id=model_id,
+                    output_format=output_format,
                 )
+                if asyncio.iscoroutine(stream_res):
+                    audio_stream = await asyncio.wait_for(
+                        stream_res, timeout=self._timeout_seconds
+                    )
+                else:
+                    audio_stream = stream_res
 
                 async for chunk in audio_stream:
                     if chunk:
@@ -265,15 +268,18 @@ class ElevenLabsTTS(TextToSpeech):
         while True:
             attempt += 1
             try:
-                audio_stream = await asyncio.wait_for(
-                    self._client.text_to_speech.stream(
-                        voice_id=voice_id,
-                        text=text,
-                        model_id=model_id,
-                        output_format=output_format,
-                    ),
-                    timeout=self._timeout_seconds,
+                stream_res = self._client.text_to_speech.stream(
+                    voice_id=voice_id,
+                    text=text,
+                    model_id=model_id,
+                    output_format=output_format,
                 )
+                if asyncio.iscoroutine(stream_res):
+                    audio_stream = await asyncio.wait_for(
+                        stream_res, timeout=self._timeout_seconds
+                    )
+                else:
+                    audio_stream = stream_res
                 break
             except Exception as err:
                 if self._is_fatal_error(err):

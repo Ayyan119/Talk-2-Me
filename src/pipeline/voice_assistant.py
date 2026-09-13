@@ -104,7 +104,11 @@ class VoiceAssistantPipeline:
             turn_metrics: Dictionary tracking latency metrics for the current turn.
         """
         self._logger.debug("Synthesizing sentence: %s", sentence)
-        stream = await self._tts.synthesize_stream(sentence)
+        stream_res = self._tts.synthesize_stream(sentence)
+        if asyncio.iscoroutine(stream_res):
+            stream = await stream_res
+        else:
+            stream = stream_res
 
         first_audio_logged = False
         async for chunk in stream:
@@ -193,7 +197,11 @@ class VoiceAssistantPipeline:
 
         try:
             self._logger.info("🧠 Prompting LLM with conversation context...")
-            llm_stream = await self._llm.generate_stream(context)
+            llm_stream_res = self._llm.generate_stream(context)
+            if asyncio.iscoroutine(llm_stream_res):
+                llm_stream = await llm_stream_res
+            else:
+                llm_stream = llm_stream_res
 
             async for token in llm_stream:
                 if "t_first_llm_token" not in turn_metrics:

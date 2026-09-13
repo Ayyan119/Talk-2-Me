@@ -52,7 +52,7 @@ def load_and_validate_config() -> dict[str, str | float | int]:
             "ELEVENLABS_API_KEY is not set or contains default placeholder. Please configure .env"
         )
 
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip() or "21m00Tcm4TlvDq8ikWAM"
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip() or "JBFqnCBsd6RMkjVDRZzb"
     whisper_model = os.getenv("WHISPER_MODEL_SIZE", "").strip() or "base"
     openai_model = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini"
     silence_raw = os.getenv("VAD_SILENCE_THRESHOLD_MS", "").strip()
