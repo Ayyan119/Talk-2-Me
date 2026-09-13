@@ -6,20 +6,14 @@ Dependencies: asyncio, logging, os, signal, sys, dotenv, src.core.exceptions, sr
 
 import asyncio
 import logging
-import os
 import signal
 import sys
 
-from dotenv import load_dotenv
-
-from src.audio.sounddevice_io import SoundDeviceAudioIO
 from src.core.exceptions import ConfigurationError, TalkToMeDomainError
-from src.llm.openai_llm import OpenAILLM
-from src.memory.sliding_window_memory import SlidingWindowMemory
-from src.pipeline.voice_assistant import VoiceAssistantPipeline
-from src.stt.faster_whisper_stt import FasterWhisperSTT
-from src.tts.elevenlabs_tts import ElevenLabsTTS
-from src.vad.silero_vad import SileroVoiceActivityDetector
+from src.pipeline.factory import (
+    build_voice_assistant_pipeline,
+    load_and_validate_config,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,48 +23,6 @@ logging.basicConfig(
     force=True,
 )
 logger = logging.getLogger("talk_to_me.main")
-
-
-def load_and_validate_config() -> dict[str, str | float | int]:
-    """Loads environment configuration and validates mandatory settings.
-
-    Returns:
-        Dictionary containing verified application configuration options.
-
-    Raises:
-        ConfigurationError: If any required credentials or settings are missing.
-    """
-    load_dotenv()
-
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not openai_key or openai_key == "your-openai-api-key-here":
-        raise ConfigurationError(
-            "OPENAI_API_KEY is not set or contains default placeholder. Please configure .env"
-        )
-
-    elevenlabs_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    if not elevenlabs_key or elevenlabs_key == "your-elevenlabs-api-key-here":
-        raise ConfigurationError(
-            "ELEVENLABS_API_KEY is not set or contains default placeholder. Please configure .env"
-        )
-
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip() or "JBFqnCBsd6RMkjVDRZzb"
-    whisper_model = os.getenv("WHISPER_MODEL_SIZE", "").strip() or "base"
-    openai_model = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini"
-    silence_raw = os.getenv("VAD_SILENCE_THRESHOLD_MS", "").strip()
-    silence_threshold = float(silence_raw) if silence_raw else 600.0
-    memory_turns_raw = os.getenv("MAX_MEMORY_TURNS", "").strip()
-    max_memory_turns = int(memory_turns_raw) if memory_turns_raw else 10
-
-    return {
-        "openai_api_key": openai_key,
-        "elevenlabs_api_key": elevenlabs_key,
-        "elevenlabs_voice_id": voice_id,
-        "whisper_model_size": whisper_model,
-        "openai_model": openai_model,
-        "silence_threshold_ms": silence_threshold,
-        "max_memory_turns": max_memory_turns,
-    }
 
 
 async def main_async() -> None:
@@ -92,49 +44,7 @@ async def main_async() -> None:
         sys.exit(1)
 
     try:
-        logger.info("Loading Silero VAD adapter...")
-        vad = SileroVoiceActivityDetector(
-            silence_threshold_ms=float(config["silence_threshold_ms"]),
-            speech_threshold=0.5,
-        )
-
-        logger.info("Loading FasterWhisper STT adapter on CPU...")
-        stt = FasterWhisperSTT(
-            model_size=str(config["whisper_model_size"]),
-            device="cpu",
-            compute_type="int8",
-        )
-
-        logger.info("Initializing OpenAILLM adapter...")
-        llm = OpenAILLM(
-            api_key=str(config["openai_api_key"]),
-            model=str(config["openai_model"]),
-            temperature=0.7,
-        )
-
-        logger.info("Initializing ElevenLabs TTS adapter...")
-        tts = ElevenLabsTTS(
-            api_key=str(config["elevenlabs_api_key"]),
-            voice_id=str(config["elevenlabs_voice_id"]),
-            model_id="eleven_flash_v2_5",
-            output_format="pcm_24000",
-        )
-
-        logger.info("Initializing Conversation Memory...")
-        memory = SlidingWindowMemory(
-            max_turns=int(config["max_memory_turns"]),
-            system_prompt=(
-                "You are a helpful, friendly, and concise conversational voice assistant. "
-                "Keep answers brief, conversational, and direct since they will be read aloud."
-            ),
-        )
-
-        logger.info("Initializing SoundDevice Audio I/O...")
-        audio_io = SoundDeviceAudioIO(
-            output_sample_rate=24000,
-            frame_size_samples=512,
-        )
-
+        pipeline, _ = build_voice_assistant_pipeline(config=config)
     except TalkToMeDomainError as err:
         logger.critical("Initialization Failure: %s", err)
         print(f"\n❌ Failed to initialize pipeline components: {err}\n", flush=True)
@@ -143,15 +53,6 @@ async def main_async() -> None:
         logger.critical("Startup Error: %s", err)
         print(f"\n❌ Unexpected error during startup: {err}\n", flush=True)
         sys.exit(1)
-
-    pipeline = VoiceAssistantPipeline(
-        vad=vad,
-        stt=stt,
-        llm=llm,
-        tts=tts,
-        memory=memory,
-        audio_io=audio_io,
-    )
 
     loop = asyncio.get_running_loop()
 
@@ -186,7 +87,7 @@ def main() -> None:
         asyncio.run(main_async())
     except KeyboardInterrupt:
         print("\nShutting down... Goodbye!", flush=True)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"\n❌ Unhandled error in main: {exc}", flush=True)
         import traceback
 
