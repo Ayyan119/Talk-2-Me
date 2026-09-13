@@ -52,16 +52,13 @@ def load_and_validate_config() -> dict[str, str | float | int]:
             "ELEVENLABS_API_KEY is not set or contains default placeholder. Please configure .env"
         )
 
-    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM").strip()
-    if not voice_id:
-        raise ConfigurationError(
-            "ELEVENLABS_VOICE_ID is missing. Specify a valid voice identifier."
-        )
-
-    whisper_model = os.getenv("WHISPER_MODEL_SIZE", "base").strip()
-    openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-    silence_threshold = float(os.getenv("VAD_SILENCE_THRESHOLD_MS", "600.0"))
-    max_memory_turns = int(os.getenv("MAX_MEMORY_TURNS", "10"))
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip() or "21m00Tcm4TlvDq8ikWAM"
+    whisper_model = os.getenv("WHISPER_MODEL_SIZE", "").strip() or "base"
+    openai_model = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini"
+    silence_raw = os.getenv("VAD_SILENCE_THRESHOLD_MS", "").strip()
+    silence_threshold = float(silence_raw) if silence_raw else 600.0
+    memory_turns_raw = os.getenv("MAX_MEMORY_TURNS", "").strip()
+    max_memory_turns = int(memory_turns_raw) if memory_turns_raw else 10
 
     return {
         "openai_api_key": openai_key,
