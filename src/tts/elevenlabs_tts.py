@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
+from elevenlabs import VoiceSettings
 from elevenlabs.client import AsyncElevenLabs
 from elevenlabs.core.api_error import ApiError
 
@@ -35,22 +36,7 @@ class ElevenLabsTTS(TextToSpeech):
         initial_retry_delay_seconds: float = 0.5,
         client: AsyncElevenLabs | None = None,
     ) -> None:
-        """Initializes the ElevenLabs TTS adapter.
-
-        Args:
-            voice_id: Unique ElevenLabs voice identifier (e.g. '21m00Tcm4TlvDq8ikWAM').
-            api_key: ElevenLabs API key. If omitted, reads from ELEVENLABS_API_KEY environment variable.
-            model_id: Model ID for synthesis (default 'eleven_flash_v2_5' for lowest latency).
-            output_format: Audio output format ('pcm_24000', 'pcm_16000', etc.).
-            timeout_seconds: Request timeout in seconds.
-            max_retries: Maximum retry attempts for transient errors.
-            initial_retry_delay_seconds: Initial backoff delay for retries.
-            client: Optional pre-configured AsyncElevenLabs client instance (for mocking/testing).
-
-        Raises:
-            ConfigurationError: If the API key is missing or empty.
-            SynthesisError: If voice_id or other constructor parameters are invalid.
-        """
+        """Initializes the ElevenLabs TTS adapter."""
         resolved_key = api_key or os.getenv("ELEVENLABS_API_KEY")
         if not resolved_key or not resolved_key.strip():
             raise ConfigurationError(
@@ -102,14 +88,7 @@ class ElevenLabsTTS(TextToSpeech):
         return self._sample_rate
 
     def _parse_sample_rate(self, output_format: str) -> int:
-        """Extracts the sample rate frequency in Hz from the format string.
-
-        Args:
-            output_format: Audio format string (e.g. 'pcm_24000', 'pcm_16000', 'mp3_44100_128').
-
-        Returns:
-            Extracted integer sample rate in Hz (default 24000).
-        """
+        """Extracts the sample rate frequency in Hz from the format string."""
         for part in output_format.split("_"):
             if part.isdigit() and int(part) in (
                 8000,
@@ -124,14 +103,7 @@ class ElevenLabsTTS(TextToSpeech):
         return 24000
 
     def _is_transient_error(self, err: Exception) -> bool:
-        """Determines whether an exception is transient and eligible for retry.
-
-        Args:
-            err: Caught exception.
-
-        Returns:
-            True if transient (rate limit 429, 5xx server error, timeout, connection drop), False otherwise.
-        """
+        """Determines whether an exception is transient and eligible for retry."""
         if isinstance(err, ApiError):
             return err.status_code in (429, 500, 502, 503, 504)
         return isinstance(
@@ -145,14 +117,7 @@ class ElevenLabsTTS(TextToSpeech):
         )
 
     def _is_fatal_error(self, err: Exception) -> bool:
-        """Determines whether an exception is permanent and should fail immediately without retry.
-
-        Args:
-            err: Caught exception.
-
-        Returns:
-            True if 400, 401, 403, 404, or ValueError.
-        """
+        """Determines whether an exception is permanent and should fail immediately without retry."""
         if isinstance(err, ApiError) and err.status_code in (
             400,
             401,
@@ -163,18 +128,7 @@ class ElevenLabsTTS(TextToSpeech):
         return isinstance(err, (ValueError, TypeError))
 
     async def synthesize(self, text: str, **kwargs: Any) -> AudioChunk:
-        """Synthesizes complete audio from an input text string.
-
-        Args:
-            text: The text content to synthesize into speech.
-            **kwargs: Provider-specific overrides (e.g., voice_id, model_id, output_format).
-
-        Returns:
-            An AudioChunk containing the complete synthesized PCM audio data.
-
-        Raises:
-            SynthesisError: If speech synthesis fails, times out, or receives invalid input.
-        """
+        """Synthesizes complete audio from an input text string."""
         if not text or not text.strip():
             raise SynthesisError("Input text for synthesis cannot be empty")
 
@@ -190,11 +144,22 @@ class ElevenLabsTTS(TextToSpeech):
             attempt += 1
             try:
                 raw_bytes_list: list[bytes] = []
+                voice_settings = kwargs.get(
+                    "voice_settings",
+                    VoiceSettings(
+                        stability=0.50,
+                        similarity_boost=0.75,
+                        style=0.0,
+                        use_speaker_boost=True,
+                    ),
+                )
                 stream_res = self._client.text_to_speech.convert(
                     voice_id=voice_id,
                     text=text,
                     model_id=model_id,
                     output_format=output_format,
+                    voice_settings=voice_settings,
+                    optimize_streaming_latency=4,
                 )
                 if asyncio.iscoroutine(stream_res):
                     audio_stream = await asyncio.wait_for(
@@ -241,18 +206,7 @@ class ElevenLabsTTS(TextToSpeech):
     async def synthesize_stream(
         self, text: str, **kwargs: Any
     ) -> AsyncIterator[SynthesisChunk]:
-        """Streams synthesized audio chunks for an input text segment.
-
-        Args:
-            text: The text content to synthesize into a streaming audio response.
-            **kwargs: Provider-specific overrides (e.g., voice_id, model_id, output_format).
-
-        Returns:
-            An asynchronous iterator yielding discrete SynthesisChunk objects with is_final flag.
-
-        Raises:
-            SynthesisError: If stream connection fails or synthesis encounters an error.
-        """
+        """Streams synthesized audio chunks for an input text segment."""
         if not text or not text.strip():
             raise SynthesisError("Input text for synthesis stream cannot be empty")
 
@@ -268,11 +222,22 @@ class ElevenLabsTTS(TextToSpeech):
         while True:
             attempt += 1
             try:
+                voice_settings = kwargs.get(
+                    "voice_settings",
+                    VoiceSettings(
+                        stability=0.50,
+                        similarity_boost=0.75,
+                        style=0.0,
+                        use_speaker_boost=True,
+                    ),
+                )
                 stream_res = self._client.text_to_speech.stream(
                     voice_id=voice_id,
                     text=text,
                     model_id=model_id,
                     output_format=output_format,
+                    voice_settings=voice_settings,
+                    optimize_streaming_latency=4,
                 )
                 if asyncio.iscoroutine(stream_res):
                     audio_stream = await asyncio.wait_for(
@@ -281,6 +246,7 @@ class ElevenLabsTTS(TextToSpeech):
                 else:
                     audio_stream = stream_res
                 break
+
             except Exception as err:
                 if self._is_fatal_error(err):
                     raise SynthesisError(
@@ -297,17 +263,8 @@ class ElevenLabsTTS(TextToSpeech):
                 ) from err
 
         pending_chunk: bytes | None = None
-        stream_iter = audio_stream.__aiter__()
-
         try:
-            while True:
-                try:
-                    chunk = await asyncio.wait_for(
-                        stream_iter.__anext__(), timeout=self._timeout_seconds
-                    )
-                except StopAsyncIteration:
-                    break
-
+            async for chunk in audio_stream:
                 if not chunk:
                     continue
 

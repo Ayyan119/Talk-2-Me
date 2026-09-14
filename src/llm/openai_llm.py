@@ -6,6 +6,7 @@ Dependencies: asyncio, collections.abc, os, dotenv, openai, src.core.types, src.
 
 import asyncio
 import os
+import random
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -26,7 +27,7 @@ class OpenAILLM(LanguageModel):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-4o",
         temperature: float = 0.7,
         max_tokens: int | None = None,
         timeout_seconds: float = 15.0,
@@ -34,22 +35,7 @@ class OpenAILLM(LanguageModel):
         initial_retry_delay_seconds: float = 0.5,
         client: AsyncOpenAI | None = None,
     ) -> None:
-        """Initializes the OpenAI LLM adapter.
-
-        Args:
-            api_key: OpenAI API key. If omitted, reads from OPENAI_API_KEY environment variable.
-            model: Model name identifier (default 'gpt-4o-mini').
-            temperature: Sampling temperature between 0.0 and 2.0.
-            max_tokens: Maximum tokens to generate, or None for model limit.
-            timeout_seconds: Request timeout in seconds.
-            max_retries: Maximum retry attempts for transient errors.
-            initial_retry_delay_seconds: Initial backoff delay for retries.
-            client: Optional pre-configured AsyncOpenAI client (e.g., for testing/mocking).
-
-        Raises:
-            ConfigurationError: If no valid API key is found.
-            LanguageModelError: If constructor arguments are invalid.
-        """
+        """Initializes the OpenAI LLM adapter."""
         resolved_key = api_key or os.getenv("OPENAI_API_KEY")
         if not resolved_key or not resolved_key.strip():
             raise ConfigurationError(
@@ -94,17 +80,7 @@ class OpenAILLM(LanguageModel):
         return self._timeout_seconds
 
     def _convert_messages(self, messages: list[Message]) -> list[dict[str, str]]:
-        """Converts domain Message objects to OpenAI message dictionaries.
-
-        Args:
-            messages: List of domain Message objects.
-
-        Returns:
-            List of dictionaries matching OpenAI message format.
-
-        Raises:
-            LanguageModelError: If messages list is empty or contains invalid entries.
-        """
+        """Converts domain Message objects to OpenAI message dictionaries."""
         if not messages:
             raise LanguageModelError("Message list cannot be empty")
 
@@ -120,14 +96,7 @@ class OpenAILLM(LanguageModel):
         return converted
 
     def _is_transient_error(self, err: Exception) -> bool:
-        """Determines whether an exception is transient and eligible for retry.
-
-        Args:
-            err: Caught exception.
-
-        Returns:
-            True if transient (rate limit, connection, server error), False otherwise.
-        """
+        """Determines whether an exception is transient and eligible for retry."""
         return isinstance(
             err,
             (
@@ -140,18 +109,7 @@ class OpenAILLM(LanguageModel):
         )
 
     async def generate(self, messages: list[Message], **kwargs: Any) -> str:
-        """Generates a complete textual response given a sequence of conversation messages.
-
-        Args:
-            messages: Ordered list of conversation messages representing chat context.
-            **kwargs: Provider-specific overrides for model, temperature, max_tokens, etc.
-
-        Returns:
-            The complete generated response string from the language model.
-
-        Raises:
-            LanguageModelError: If model inference fails or retries are exhausted.
-        """
+        """Generates a complete textual response given a sequence of conversation messages."""
         openai_messages = self._convert_messages(messages)
         model = kwargs.get("model", self._model)
         temperature = kwargs.get("temperature", self._temperature)
@@ -193,7 +151,7 @@ class OpenAILLM(LanguageModel):
             except Exception as err:
                 if self._is_transient_error(err) and attempt <= self._max_retries:
                     await asyncio.sleep(delay)
-                    delay *= 2.0
+                    delay = (delay * 2.0) + random.uniform(0.01, 0.1 * delay)
                     continue
 
                 raise LanguageModelError(
@@ -203,18 +161,7 @@ class OpenAILLM(LanguageModel):
     async def generate_stream(
         self, messages: list[Message], **kwargs: Any
     ) -> AsyncIterator[str]:
-        """Streams generated response tokens/chunks given conversation history.
-
-        Args:
-            messages: Ordered list of conversation messages representing chat context.
-            **kwargs: Provider-specific overrides for model, temperature, max_tokens, etc.
-
-        Returns:
-            An asynchronous iterator yielding textual delta tokens as they are generated.
-
-        Raises:
-            LanguageModelError: If streaming fails or connection is prematurely terminated.
-        """
+        """Streams generated response tokens/chunks given conversation history."""
         openai_messages = self._convert_messages(messages)
         model = kwargs.get("model", self._model)
         temperature = kwargs.get("temperature", self._temperature)
@@ -250,7 +197,7 @@ class OpenAILLM(LanguageModel):
             except Exception as err:
                 if self._is_transient_error(err) and attempt <= self._max_retries:
                     await asyncio.sleep(delay)
-                    delay *= 2.0
+                    delay = (delay * 2.0) + random.uniform(0.01, 0.1 * delay)
                     continue
                 raise LanguageModelError(
                     f"OpenAI stream initiation failed after {attempt} attempt(s): {err}"
