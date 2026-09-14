@@ -15,7 +15,9 @@ from src.core.exceptions import ConfigurationError
 from src.llm.openai_llm import OpenAILLM
 from src.memory.sliding_window_memory import SlidingWindowMemory
 from src.pipeline.voice_assistant import VoiceAssistantPipeline
+from src.stt.deepgram_stt import DeepgramSTT
 from src.stt.faster_whisper_stt import FasterWhisperSTT
+from src.stt.openai_whisper_stt import OpenAIWhisperSTT
 from src.tts.elevenlabs_tts import ElevenLabsTTS
 from src.vad.silero_vad import SileroVoiceActivityDetector
 
@@ -23,14 +25,7 @@ logger = logging.getLogger("talk_to_me.factory")
 
 
 def load_and_validate_config() -> dict[str, str | float | int]:
-    """Loads environment configuration and validates mandatory settings.
-
-    Returns:
-        Dictionary containing verified application configuration options.
-
-    Raises:
-        ConfigurationError: If any required credentials or settings are missing.
-    """
+    """Loads environment configuration and validates mandatory settings."""
     load_dotenv()
 
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -45,9 +40,18 @@ def load_and_validate_config() -> dict[str, str | float | int]:
             "ELEVENLABS_API_KEY is not set or contains default placeholder. Please configure .env"
         )
 
+    deepgram_key = os.getenv("DEEPGRAM_API_KEY", "").strip()
     voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip() or "JBFqnCBsd6RMkjVDRZzb"
     whisper_model = os.getenv("WHISPER_MODEL_SIZE", "").strip() or "base"
-    openai_model = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini"
+
+    default_stt = (
+        "deepgram"
+        if (deepgram_key and deepgram_key != "your-deepgram-api-key-here")
+        else "openai"
+    )
+    stt_provider = os.getenv("STT_PROVIDER", default_stt).strip().lower()
+
+    openai_model = os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o"
     silence_raw = os.getenv("VAD_SILENCE_THRESHOLD_MS", "").strip()
     silence_threshold = float(silence_raw) if silence_raw else 600.0
     memory_turns_raw = os.getenv("MAX_MEMORY_TURNS", "").strip()
@@ -56,8 +60,10 @@ def load_and_validate_config() -> dict[str, str | float | int]:
     return {
         "openai_api_key": openai_key,
         "elevenlabs_api_key": elevenlabs_key,
+        "deepgram_api_key": deepgram_key,
         "elevenlabs_voice_id": voice_id,
         "whisper_model_size": whisper_model,
+        "stt_provider": stt_provider,
         "openai_model": openai_model,
         "silence_threshold_ms": silence_threshold,
         "max_memory_turns": max_memory_turns,
@@ -69,16 +75,7 @@ def build_voice_assistant_pipeline(
     audio_io: AudioIO | None = None,
     custom_logger: logging.Logger | None = None,
 ) -> tuple[VoiceAssistantPipeline, dict[str, Any]]:
-    """Constructs and wires all domain adapters into a VoiceAssistantPipeline instance.
-
-    Args:
-        config: Optional pre-loaded configuration dictionary.
-        audio_io: Optional custom AudioIO implementation instance.
-        custom_logger: Optional custom logger for telemetry diagnostics.
-
-    Returns:
-        A tuple of (initialized VoiceAssistantPipeline instance, resolved configuration dict).
-    """
+    """Constructs and wires all domain adapters into a VoiceAssistantPipeline instance."""
     resolved_config = config if config is not None else load_and_validate_config()
 
     logger.info("Initializing Silero VAD adapter...")
@@ -87,12 +84,38 @@ def build_voice_assistant_pipeline(
         speech_threshold=0.5,
     )
 
-    logger.info("Initializing FasterWhisper STT adapter on CPU...")
-    stt = FasterWhisperSTT(
-        model_size=str(resolved_config["whisper_model_size"]),
-        device="cpu",
-        compute_type="int8",
-    )
+    stt_choice = str(resolved_config.get("stt_provider", "openai")).lower()
+    deepgram_key = str(resolved_config.get("deepgram_api_key", "")).strip()
+
+    if (
+        stt_choice == "deepgram"
+        and deepgram_key
+        and deepgram_key != "your-deepgram-api-key-here"
+    ):
+        logger.info("Initializing Deepgram Streaming STT adapter (Nova-2)...")
+        stt = DeepgramSTT(
+            api_key=deepgram_key,
+            model="nova-2",
+            language="en",
+            smart_format=True,
+            punctuate=True,
+            interim_results=True,
+            endpointing_ms=250,
+        )
+    elif stt_choice == "faster-whisper":
+        logger.info("Initializing FasterWhisper STT adapter on CPU...")
+        stt = FasterWhisperSTT(
+            model_size=str(resolved_config["whisper_model_size"]),
+            device="cpu",
+            compute_type="int8",
+        )
+    else:
+        logger.info("Initializing OpenAI Whisper STT (whisper-1 cloud GPU)...")
+        stt = OpenAIWhisperSTT(
+            api_key=str(resolved_config["openai_api_key"]),
+            model="whisper-1",
+            temperature=0.0,
+        )
 
     logger.info("Initializing OpenAILLM adapter...")
     llm = OpenAILLM(
@@ -113,8 +136,10 @@ def build_voice_assistant_pipeline(
     memory = SlidingWindowMemory(
         max_turns=int(resolved_config["max_memory_turns"]),
         system_prompt=(
-            "You are a helpful, friendly, and concise conversational voice assistant. "
-            "Keep answers brief, conversational, and direct since they will be read aloud."
+            "You are a friendly, natural human conversational companion on a live voice call. "
+            "Speak naturally and warmly in everyday conversational English. "
+            "Keep answers concise, engaging, and under two sentences so the conversation flows seamlessly. "
+            "Never use bullet points, markdown symbols, asterisks, emojis, or numbered lists since your reply is read aloud."
         ),
     )
 

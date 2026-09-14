@@ -76,12 +76,16 @@ class TranscriptionResult:
         language: Detected or configured language code (e.g., 'en').
         confidence: Optional confidence score between 0.0 and 1.0.
         duration_seconds: Duration of the transcribed audio segment.
+        is_final: Whether this transcript is final or an interim partial transcript.
+        speech_final: Whether endpointing/VAD detected the end of a spoken utterance.
     """
 
     text: str
     language: str | None = None
     confidence: float | None = None
     duration_seconds: float = 0.0
+    is_final: bool = True
+    speech_final: bool = False
 
 
 @dataclass(frozen=True)
